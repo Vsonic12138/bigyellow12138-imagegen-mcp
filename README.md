@@ -1,4 +1,4 @@
-# bigyellow12138-imagegen-mcp
+# bigyellow12138 生图 MCP
 
 BigYellow 生图中转的 MCP（stdio）。零依赖，Node.js 18+ 即可运行。
 
@@ -20,7 +20,7 @@ MCP 客户端里加一段配置，**只需要填自己的令牌**：
   "mcpServers": {
     "imagegen": {
       "command": "npx",
-      "args": ["-y", "bigyellow12138-imagegen-mcp"],
+      "args": ["-y", "@bigyellow12138/imagegen-mcp"],
       "env": {
         "BIGYELLOW_TOKEN": "sk-你的令牌"
       },
@@ -30,7 +30,7 @@ MCP 客户端里加一段配置，**只需要填自己的令牌**：
 }
 ```
 
-还没发 npm 时，可以走 GitHub：
+如果 npm 上暂时不可用，可以走 GitHub：
 
 ```jsonc
 "args": ["-y", "github:Vsonic12138/bigyellow12138-imagegen-mcp"]

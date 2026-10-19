@@ -1,5 +1,5 @@
 {
-  "name": "bigyellow12138-imagegen-mcp",
+  "name": "@bigyellow12138/imagegen-mcp",
   "version": "0.1.0",
   "description": "BigYellow 生图 MCP：gpt-image-2.5-flare / sunburst，支持 1K/2K/4K 与图生图编辑（零依赖 stdio）",
   "type": "module",
