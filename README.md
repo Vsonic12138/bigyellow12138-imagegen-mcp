@@ -63,10 +63,10 @@
 1. 调用时传 `outputDir` → 存到该目录
 2. 配了 `IMAGE_OUTPUT_DIR` → 用它
 3. 客户端**在项目目录里启动 MCP**（进程 cwd 是项目路径）→ 存到 `<项目>/ai-images`
-4. 以上都没有 → `~/Pictures/bigyellow-images`
+4. 以上都没有 → `~/ai-images`（Windows 为 `C:\Users\<用户名>\ai-images`）
 
 > 说明：Claude Code / Codex / Cursor 一般会把项目目录作为 MCP 进程的 cwd，所以默认会存进项目；
-> Harness（DSH）的 cwd 固定在 `~/.dsh/profiles/desktop`，因此会回退到用户图片目录。
+> Harness（DSH）的 cwd 固定在 `~/.dsh/profiles/desktop`，因此会回退到 `~/ai-images`。
 > 在 Harness 里想存进项目，配 `IMAGE_OUTPUT_DIR` 或让模型传 `outputDir` 即可。
 
 大模型知道自己当前的工作目录，所以最简单的方式是在提示词里说“存到项目里”，然后由模型把项目路径传给 `outputDir`，例如：
@@ -119,7 +119,7 @@ generate_image({ prompt: "...", outputDir: "<当前项目>/assets" })
 
 - **403 / error 1010**：Cloudflare 浏览器完整性检查拦截，需要在站点给 `/v1/*` 放行。
 - **超时**：把客户端 `timeoutMs` 和 `REQUEST_TIMEOUT_MS` 调大；4K 单张可能超过 60 秒。
-- **找不到图片**：看返回文本里的完整路径；Windows 默认在 `%USERPROFILE%\Pictures\bigyellow-images`。
+- **找不到图片**：看返回文本里的完整路径；Windows 默认在 `%USERPROFILE%\ai-images`。
 - **4K 文件很大**：4096×4096 PNG 约 15–20MB，正常。
 - **换中转后报 404**：确认对方支持 `/v1/images/generations` 和 `/v1/images/edits`，以及 `IMAGE_API_BASE_URL` 是否包含了正确的路径前缀。
 
