@@ -20,7 +20,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { createInterface } from 'node:readline';
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const DEFAULT_BASE = 'https://newapi.vsonic12138.shop/v1';
 const MODELS = ['gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'];
 const MODEL_ALIASES = {
@@ -68,16 +68,17 @@ const TOOL = {
     'Generate a new image or edit existing images through an OpenAI-compatible image relay. ' +
     'Use this whenever the user asks for a picture, illustration, poster, product shot, avatar, icon, concept art, or an image edit. ' +
     'Models: gpt-image-2.5-flare (fast, everyday generation) and gpt-image-2.5-sunburst (higher fidelity, best for precise edits and multi-round refinements). ' +
-    'Sizes: 1K = 1024x1024, 2K = 2048x2048, 4K = 4096x4096, or an explicit WIDTHxHEIGHT. ' +
+    'Sizes: 1K/2K/4K are square presets (1024x1024, 2048x2048, 4096x4096). To keep a portrait or landscape composition, pass an explicit WIDTHxHEIGHT such as 1536x2048; when editing, omit size and the source image dimensions are reused automatically. ' +
     'Quality: low, medium, high, xhigh, max or auto. ' +
-    'Pass local file paths in images[] for image-to-image editing. ' +
+    'Pass local file paths in images[] for image-to-image editing. Editing is generative, not pixel-level: describe what to change AND what must stay the same, keep the instruction narrow, and prefer gpt-image-2.5-sunburst; the model may still alter unmentioned details. ' +
     'The image is saved to disk and the absolute file path is returned in the text result.',
   inputSchema: {
     type: 'object',
     properties: {
       prompt: {
         type: 'string',
-        description: 'Text description of the desired image, or the edit instruction when images are provided.',
+        description:
+          'Text description of the desired image. For edits: state the single change and what must stay unchanged (e.g. "replace the background with a snowy sunset, keep the person, pose and clothing identical"). Editing re-renders the image, so "do not change anything else" is a prompt instruction, not a guarantee.',
       },
       model: {
         type: 'string',
@@ -89,7 +90,7 @@ const TOOL = {
       size: {
         type: 'string',
         description:
-          '1K = 1024x1024, 2K = 2048x2048, 4K = 4096x4096, auto, or WIDTHxHEIGHT such as 1536x1024 (multiples of 16). Default: 1K.',
+          '1K/2K/4K are square presets (1024x1024 / 2048x2048 / 4096x4096). For portrait/landscape output pass WIDTHxHEIGHT such as 1536x2048 (multiples of 16). When editing and omitted, the source image dimensions are reused automatically. Default: 1K square.',
       },
       quality: {
         type: 'string',
@@ -142,6 +143,49 @@ function detectExtension(buffer) {
   if (buffer.length > 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') return 'webp';
   if (buffer.length > 6 && buffer.toString('ascii', 0, 3) === 'GIF') return 'gif';
   return 'png';
+}
+
+function round16(value) {
+  return Math.max(16, Math.round(value / 16) * 16);
+}
+
+function imageDimensions(buffer) {
+  if (buffer.length > 24 && buffer[0] === 0x89 && buffer[1] === 0x50) {
+    return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+  }
+  if (buffer.length > 4 && buffer[0] === 0xff && buffer[1] === 0xd8) {
+    let offset = 2;
+    while (offset + 9 < buffer.length) {
+      if (buffer[offset] !== 0xff) {
+        offset += 1;
+        continue;
+      }
+      const marker = buffer[offset + 1];
+      const length = buffer.readUInt16BE(offset + 2);
+      if ([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(marker)) {
+        return { height: buffer.readUInt16BE(offset + 5), width: buffer.readUInt16BE(offset + 7) };
+      }
+      offset += 2 + length;
+    }
+  }
+  if (buffer.length > 30 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') {
+    const chunk = buffer.toString('ascii', 12, 16);
+    if (chunk === 'VP8X') {
+      const width = 1 + buffer.readUIntLE(24, 3);
+      const height = 1 + buffer.readUIntLE(27, 3);
+      return { width, height };
+    }
+    if (chunk === 'VP8L' && buffer.length > 25) {
+      const bits = buffer.readUInt32LE(21);
+      return { width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 };
+    }
+  }
+  return null;
+}
+
+function scaleToLimit(width, height, limit = 4096) {
+  const scale = Math.min(1, limit / width, limit / height);
+  return { width: round16(width * scale), height: round16(height * scale) };
 }
 
 function extractErrorMessage(status, text) {
@@ -228,10 +272,26 @@ async function generateImage(args) {
   const prompt = String(args.prompt ?? '').trim();
   if (!prompt) throw new Error('prompt 不能为空。');
   const model = normalizeModel(args.model ?? CONFIG.defaultModel);
-  const size = normalizeSize(args.size);
   const quality = normalizeQuality(args.quality);
   const n = Math.min(4, Math.max(1, Number.parseInt(args.n ?? 1, 10) || 1));
   const images = Array.isArray(args.images) ? args.images.map(String) : [];
+  const imageFiles = images.map(readImageFile);
+
+  const explicitSize = args.size !== undefined && args.size !== null && String(args.size).trim() !== '';
+  let size;
+  if (explicitSize) {
+    size = normalizeSize(args.size);
+  } else if (imageFiles.length > 0) {
+    const source = imageDimensions(imageFiles[0].buffer);
+    if (source) {
+      const fitted = scaleToLimit(source.width, source.height);
+      size = `${fitted.width}x${fitted.height}`;
+    } else {
+      size = normalizeSize('1K');
+    }
+  } else {
+    size = normalizeSize('1K');
+  }
 
   let url;
   let init;
@@ -243,8 +303,7 @@ async function generateImage(args) {
     form.append('n', String(n));
     form.append('size', size);
     form.append('quality', quality);
-    for (const imagePath of images) {
-      const { absolute, buffer } = readImageFile(imagePath);
+    for (const { absolute, buffer } of imageFiles) {
       form.append('image', new Blob([buffer], { type: mimeOf(buffer) }), path.basename(absolute));
     }
     init = { method: 'POST', headers: { Authorization: `Bearer ${CONFIG.token}` }, body: form };
@@ -324,8 +383,9 @@ async function handleMessage(message) {
           instructions:
             '生图/改图工具：调用 generate_image。' +
             '模型：gpt-image-2.5-flare（快，默认）或 gpt-image-2.5-sunburst（精度高，适合精修与多轮编辑）。' +
-            '尺寸：1K / 2K / 4K 或 宽x高；质量：low / medium / high / xhigh / max / auto。' +
-            '图生图或编辑：把本地图片路径放进 images 数组。' +
+            '尺寸：1K/2K/4K 是正方形预设；要保持竖图/横图比例就传 宽x高（如 1536x2048），改图时不传 size 会自动沿用原图尺寸。' +
+            '质量：low / medium / high / xhigh / max / auto。' +
+            '图生图或编辑：把本地图片路径放进 images 数组；编辑是重新生成而非像素级修改，提示词要写清楚“改什么”和“什么必须保持不变”，精细改图优先用 sunburst。' +
             '图片会保存到本地，结果文本里会返回文件路径。',
         },
       });
