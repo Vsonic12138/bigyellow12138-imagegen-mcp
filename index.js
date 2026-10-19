@@ -20,7 +20,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { createInterface } from 'node:readline';
 
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 const DEFAULT_BASE = 'https://newapi.vsonic12138.shop/v1';
 const MODELS = ['gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'];
 const MODEL_ALIASES = {
@@ -39,7 +39,28 @@ function logErr(...args) {
   process.stderr.write(`[bigyellow-imagegen] ${args.join(' ')}\n`);
 }
 
+function isProjectDirectory(dir) {
+  const home = os.homedir();
+  const lower = dir.toLowerCase();
+  const homeLower = home.toLowerCase();
+  const blocked = [
+    path.join(home, '.dsh'),
+    path.join(home, '.zcode'),
+    path.join(home, 'AppData'),
+    path.join(home, 'Library'),
+    'c:\\windows',
+    'c:\\program files',
+    'c:\\program files (x86)',
+  ].map((entry) => entry.toLowerCase());
+  if (lower === homeLower || lower === homeLower + path.sep) return false;
+  return !blocked.some((entry) => lower === entry || lower.startsWith(entry + path.sep));
+}
+
 function defaultOutputDir() {
+  const projectHint = process.env.CLAUDE_PROJECT_DIR || process.env.PROJECT_DIR;
+  if (projectHint) return path.join(projectHint, 'ai-images');
+  const cwd = process.cwd();
+  if (isProjectDirectory(cwd)) return path.join(cwd, 'ai-images');
   return path.join(os.homedir(), 'Pictures', 'bigyellow-images');
 }
 
@@ -71,7 +92,7 @@ const TOOL = {
     'Sizes: 1K/2K/4K are square presets (1024x1024, 2048x2048, 4096x4096). To keep a portrait or landscape composition, pass an explicit WIDTHxHEIGHT such as 1536x2048; when editing, omit size and the source image dimensions are reused automatically. ' +
     'Quality: low, medium, high, xhigh, max or auto. ' +
     'Pass local file paths in images[] for image-to-image editing. Editing is generative, not pixel-level: describe what to change AND what must stay the same, keep the instruction narrow, and prefer gpt-image-2.5-sunburst; the model may still alter unmentioned details. ' +
-    'The image is saved to disk and the absolute file path is returned in the text result.',
+    'Images are saved to <project>/ai-images when the client starts this server inside a project, otherwise to ~/Pictures/bigyellow-images; pass outputDir to choose a directory explicitly. The absolute file path is returned in the text result.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -102,6 +123,10 @@ const TOOL = {
         type: 'array',
         items: { type: 'string' },
         description: 'Local image file paths for image-to-image editing. When provided the request uses the image edit endpoint.',
+      },
+      outputDir: {
+        type: 'string',
+        description: 'Optional directory to save images into. Use this to put images inside the current project, e.g. <project>/assets.',
       },
       outputPath: { type: 'string', description: 'Optional absolute file path for the first saved image.' },
     },
@@ -320,7 +345,8 @@ async function generateImage(args) {
   const items = Array.isArray(payload.data) ? payload.data : payload.data ? [payload.data] : [];
   if (items.length === 0) throw new Error('接口没有返回图片数据。');
 
-  fs.mkdirSync(CONFIG.outputDir, { recursive: true });
+  const targetDir = args.outputDir ? path.resolve(String(args.outputDir)) : CONFIG.outputDir;
+  fs.mkdirSync(targetDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const files = [];
   for (const [index, item] of items.entries()) {
@@ -336,7 +362,7 @@ async function generateImage(args) {
     }
     const target = args.outputPath
       ? path.resolve(String(args.outputPath))
-      : path.join(CONFIG.outputDir, `${stamp}-${model.replace('gpt-image-2.5-', '')}-${index + 1}.${detectExtension(buffer)}`);
+      : path.join(targetDir, `${stamp}-${model.replace('gpt-image-2.5-', '')}-${index + 1}.${detectExtension(buffer)}`);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, buffer);
     files.push(target);
@@ -386,7 +412,7 @@ async function handleMessage(message) {
             '尺寸：1K/2K/4K 是正方形预设；要保持竖图/横图比例就传 宽x高（如 1536x2048），改图时不传 size 会自动沿用原图尺寸。' +
             '质量：low / medium / high / xhigh / max / auto。' +
             '图生图或编辑：把本地图片路径放进 images 数组；编辑是重新生成而非像素级修改，提示词要写清楚“改什么”和“什么必须保持不变”，精细改图优先用 sunburst。' +
-            '图片会保存到本地，结果文本里会返回文件路径。',
+            '默认保存到项目目录下的 ai-images（客户端在项目里启动时），否则保存到用户图片目录；也可以传 outputDir 指定目录。结果文本里会返回文件路径。',
         },
       });
       return;

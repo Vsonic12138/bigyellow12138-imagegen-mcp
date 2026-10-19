@@ -48,13 +48,26 @@
 |---|---|---|---|
 | `IMAGE_API_TOKEN` | ✅ | — | 中转令牌（`sk-...`，不带前缀会自动补） |
 | `IMAGE_API_BASE_URL` | | 内置 BigYellow 地址 | 任意 OpenAI 兼容中转，例如 `https://example.com/v1` |
-| `IMAGE_OUTPUT_DIR` | | `~/Pictures/bigyellow-images` | 图片保存目录，自动创建 |
+| `IMAGE_OUTPUT_DIR` | | 见下方“保存位置” | 图片保存目录，自动创建 |
 | `DEFAULT_MODEL` | | `gpt-image-2.5-flare` | 默认模型 |
 | `DEFAULT_QUALITY` | | `high` | 默认质量 |
 | `REQUEST_TIMEOUT_MS` | | `180000` | 单次请求超时 |
 | `MAX_RETRIES` | | `2` | 429/5xx/1010 自动重试次数 |
 
 > 兼容旧变量名：`BIGYELLOW_TOKEN` / `BIGYELLOW_BASE_URL` 仍然可用。
+
+## 图片保存位置
+
+按优先级：
+
+1. 调用时传 `outputDir` → 存到该目录
+2. 配了 `IMAGE_OUTPUT_DIR` → 用它
+3. 客户端**在项目目录里启动 MCP**（进程 cwd 是项目路径）→ 存到 `<项目>/ai-images`
+4. 以上都没有 → `~/Pictures/bigyellow-images`
+
+> 说明：Claude Code / Codex / Cursor 一般会把项目目录作为 MCP 进程的 cwd，所以默认会存进项目；
+> Harness（DSH）的 cwd 固定在 `~/.dsh/profiles/desktop`，因此会回退到用户图片目录。
+> 在 Harness 里想存进项目，配 `IMAGE_OUTPUT_DIR` 或让模型传 `outputDir` 即可。
 
 ## 工具参数（`generate_image`）
 
@@ -66,6 +79,7 @@
 | `quality` | string | `low` / `medium` / `high` / `xhigh` / `max` / `auto`，默认 high |
 | `n` | integer | 生成张数 1–4，默认 1 |
 | `images` | string[] | 本地图片路径，传了就走图生图编辑 |
+| `outputDir` | string | 可选，指定保存目录（适合让图片进入当前项目） |
 | `outputPath` | string | 可选，指定第一张图的输出路径 |
 
 ## 改图的正确写法

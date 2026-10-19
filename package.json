@@ -1,6 +1,6 @@
 {
   "name": "@bigyellow12138/imagegen-mcp",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "生图/改图 MCP：支持 gpt-image-2.5-flare / sunburst，1K/2K/4K、图生图编辑，可配置任意 OpenAI 兼容中转地址（零依赖 stdio）",
   "type": "module",
   "bin": {
