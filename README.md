@@ -69,6 +69,12 @@
 > Harness（DSH）的 cwd 固定在 `~/.dsh/profiles/desktop`，因此会回退到用户图片目录。
 > 在 Harness 里想存进项目，配 `IMAGE_OUTPUT_DIR` 或让模型传 `outputDir` 即可。
 
+大模型知道自己当前的工作目录，所以最简单的方式是在提示词里说“存到项目里”，然后由模型把项目路径传给 `outputDir`，例如：
+
+```
+generate_image({ prompt: "...", outputDir: "<当前项目>/assets" })
+```
+
 ## 工具参数（`generate_image`）
 
 | 参数 | 类型 | 说明 |

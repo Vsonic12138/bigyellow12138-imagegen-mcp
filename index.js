@@ -20,7 +20,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { createInterface } from 'node:readline';
 
-const VERSION = '0.4.0';
+const VERSION = '0.4.1';
 const DEFAULT_BASE = 'https://newapi.vsonic12138.shop/v1';
 const MODELS = ['gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'];
 const MODEL_ALIASES = {
@@ -92,7 +92,9 @@ const TOOL = {
     'Sizes: 1K/2K/4K are square presets (1024x1024, 2048x2048, 4096x4096). To keep a portrait or landscape composition, pass an explicit WIDTHxHEIGHT such as 1536x2048; when editing, omit size and the source image dimensions are reused automatically. ' +
     'Quality: low, medium, high, xhigh, max or auto. ' +
     'Pass local file paths in images[] for image-to-image editing. Editing is generative, not pixel-level: describe what to change AND what must stay the same, keep the instruction narrow, and prefer gpt-image-2.5-sunburst; the model may still alter unmentioned details. ' +
-    'Images are saved to <project>/ai-images when the client starts this server inside a project, otherwise to ~/Pictures/bigyellow-images; pass outputDir to choose a directory explicitly. The absolute file path is returned in the text result.',
+    'Images are saved to <project>/ai-images when the client starts this server inside a project, otherwise to ~/Pictures/bigyellow-images. ' +
+    'When the user wants the image kept inside the current project or a specific folder, pass outputDir with the project path you know from your environment (for example <project>/assets). ' +
+    'The absolute file path is returned in the text result.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -412,7 +414,8 @@ async function handleMessage(message) {
             '尺寸：1K/2K/4K 是正方形预设；要保持竖图/横图比例就传 宽x高（如 1536x2048），改图时不传 size 会自动沿用原图尺寸。' +
             '质量：low / medium / high / xhigh / max / auto。' +
             '图生图或编辑：把本地图片路径放进 images 数组；编辑是重新生成而非像素级修改，提示词要写清楚“改什么”和“什么必须保持不变”，精细改图优先用 sunburst。' +
-            '默认保存到项目目录下的 ai-images（客户端在项目里启动时），否则保存到用户图片目录；也可以传 outputDir 指定目录。结果文本里会返回文件路径。',
+            '默认保存到项目目录下的 ai-images（客户端在项目里启动时），否则保存到用户图片目录。' +
+            '如果用户希望图片放进当前项目，请把你已知的项目路径传给 outputDir（例如 <项目>/assets）。结果文本里会返回文件路径。',
         },
       });
       return;
