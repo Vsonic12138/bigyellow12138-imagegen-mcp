@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /**
- * newapi-imagegen-mcp
+ * bigyellow12138-imagegen-mcp
  *
- * Zero-dependency MCP (stdio) server for the NewAPI image relay.
+ * Zero-dependency MCP (stdio) server for the BigYellow image relay.
  * Models: gpt-image-2.5-flare (fast) / gpt-image-2.5-sunburst (fidelity).
  *
  * Required env:
- *   NEWAPI_TOKEN       NewAPI token (sk-... or bare key)
+ *   BIGYELLOW_TOKEN       生图令牌（sk-... 或裸 key）
  * Optional env:
- *   NEWAPI_BASE_URL    default https://newapi.vsonic12138.shop/v1
- *   IMAGE_OUTPUT_DIR   default ~/Pictures/newapi-images
+ *   BIGYELLOW_BASE_URL    默认已内置，无需填写
+ *   IMAGE_OUTPUT_DIR   default ~/Pictures/bigyellow-images
  *   DEFAULT_MODEL      gpt-image-2.5-flare (default)
  *   DEFAULT_QUALITY    high (default)
  *   REQUEST_TIMEOUT_MS 180000 (default)
@@ -36,16 +36,16 @@ const SIZE_PRESETS = { '1K': '1024x1024', '2K': '2048x2048', '4K': '4096x4096', 
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
 
 function logErr(...args) {
-  process.stderr.write(`[newapi-imagegen] ${args.join(' ')}\n`);
+  process.stderr.write(`[bigyellow-imagegen] ${args.join(' ')}\n`);
 }
 
 function defaultOutputDir() {
-  return path.join(os.homedir(), 'Pictures', 'newapi-images');
+  return path.join(os.homedir(), 'Pictures', 'bigyellow-images');
 }
 
 function resolveConfig() {
-  const rawToken = (process.env.NEWAPI_TOKEN || process.env.OPENAI_API_KEY || '').trim();
-  let base = (process.env.NEWAPI_BASE_URL || DEFAULT_BASE).trim().replace(/\/+$/, '');
+  const rawToken = (process.env.BIGYELLOW_TOKEN || process.env.OPENAI_API_KEY || '').trim();
+  let base = (process.env.BIGYELLOW_BASE_URL || DEFAULT_BASE).trim().replace(/\/+$/, '');
   if (!/\/v1$/i.test(base)) base += '/v1';
   const quality = String(process.env.DEFAULT_QUALITY || 'high').toLowerCase();
   return {
@@ -64,7 +64,7 @@ const CONFIG = resolveConfig();
 const TOOL = {
   name: 'generate_image',
   description:
-    'Generate a new image or edit existing images through the NewAPI image relay. ' +
+    'Generate a new image or edit existing images through the BigYellow image relay. ' +
     'Models: gpt-image-2.5-flare (fast, everyday) and gpt-image-2.5-sunburst (highest fidelity for edits). ' +
     'Saves the result to disk and returns the file path. Pass local file paths in images[] to edit.',
   inputSchema: {
@@ -212,7 +212,7 @@ function mimeOf(buffer) {
 
 async function generateImage(args) {
   if (!CONFIG.token) {
-    throw new Error('缺少 NEWAPI_TOKEN 环境变量，请填写你的 NewAPI 令牌（sk-...）。');
+    throw new Error('缺少 BIGYELLOW_TOKEN 环境变量，请填写你的生图令牌（sk-...）。');
   }
   const prompt = String(args.prompt ?? '').trim();
   if (!prompt) throw new Error('prompt 不能为空。');
@@ -309,7 +309,7 @@ async function handleMessage(message) {
         result: {
           protocolVersion: params?.protocolVersion || '2024-11-05',
           capabilities: { tools: {} },
-          serverInfo: { name: 'newapi-imagegen', version: VERSION },
+          serverInfo: { name: 'bigyellow-imagegen', version: VERSION },
         },
       });
       return;
@@ -334,9 +334,9 @@ async function handleMessage(message) {
 }
 
 if (!CONFIG.token) {
-  logErr('NEWAPI_TOKEN 未设置：工具调用会返回配置错误。');
+  logErr('BIGYELLOW_TOKEN 未设置：工具调用会返回配置错误。');
 }
-logErr(`imagegen v${VERSION} ready (model=${CONFIG.defaultModel}, dir=${CONFIG.outputDir})`);
+logErr(`bigyellow-imagegen v${VERSION} ready (model=${CONFIG.defaultModel}, dir=${CONFIG.outputDir})`);
 
 const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
 rl.on('line', (line) => {
