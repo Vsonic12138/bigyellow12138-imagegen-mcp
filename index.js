@@ -6,9 +6,9 @@
  * Models: gpt-image-2.5-flare (fast) / gpt-image-2.5-sunburst (fidelity).
  *
  * Required env:
- *   BIGYELLOW_TOKEN       生图令牌（sk-... 或裸 key）
+ *   IMAGE_API_TOKEN       生图令牌（sk-... 或裸 key）
  * Optional env:
- *   BIGYELLOW_BASE_URL    默认已内置，无需填写
+ *   IMAGE_API_BASE_URL    中转地址（默认已内置，可用来自定义其他中转）
  *   IMAGE_OUTPUT_DIR   default ~/Pictures/bigyellow-images
  *   DEFAULT_MODEL      gpt-image-2.5-flare (default)
  *   DEFAULT_QUALITY    high (default)
@@ -20,7 +20,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { createInterface } from 'node:readline';
 
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 const DEFAULT_BASE = 'https://newapi.vsonic12138.shop/v1';
 const MODELS = ['gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'];
 const MODEL_ALIASES = {
@@ -44,8 +44,8 @@ function defaultOutputDir() {
 }
 
 function resolveConfig() {
-  const rawToken = (process.env.BIGYELLOW_TOKEN || process.env.OPENAI_API_KEY || '').trim();
-  let base = (process.env.BIGYELLOW_BASE_URL || DEFAULT_BASE).trim().replace(/\/+$/, '');
+  const rawToken = (process.env.IMAGE_API_TOKEN || process.env.BIGYELLOW_TOKEN || process.env.OPENAI_API_KEY || '').trim();
+  let base = (process.env.IMAGE_API_BASE_URL || process.env.BIGYELLOW_BASE_URL || DEFAULT_BASE).trim().replace(/\/+$/, '');
   if (!/\/v1$/i.test(base)) base += '/v1';
   const quality = String(process.env.DEFAULT_QUALITY || 'high').toLowerCase();
   return {
@@ -63,35 +63,46 @@ const CONFIG = resolveConfig();
 
 const TOOL = {
   name: 'generate_image',
+  title: '生成/编辑图片',
   description:
-    'Generate a new image or edit existing images through the BigYellow image relay. ' +
-    'Models: gpt-image-2.5-flare (fast, everyday) and gpt-image-2.5-sunburst (highest fidelity for edits). ' +
-    'Saves the result to disk and returns the file path. Pass local file paths in images[] to edit.',
+    'Generate a new image or edit existing images through an OpenAI-compatible image relay. ' +
+    'Use this whenever the user asks for a picture, illustration, poster, product shot, avatar, icon, concept art, or an image edit. ' +
+    'Models: gpt-image-2.5-flare (fast, everyday generation) and gpt-image-2.5-sunburst (higher fidelity, best for precise edits and multi-round refinements). ' +
+    'Sizes: 1K = 1024x1024, 2K = 2048x2048, 4K = 4096x4096, or an explicit WIDTHxHEIGHT. ' +
+    'Quality: low, medium, high, xhigh, max or auto. ' +
+    'Pass local file paths in images[] for image-to-image editing. ' +
+    'The image is saved to disk and the absolute file path is returned in the text result.',
   inputSchema: {
     type: 'object',
     properties: {
-      prompt: { type: 'string', description: 'Prompt describing the image to generate or the edit to apply.' },
+      prompt: {
+        type: 'string',
+        description: 'Text description of the desired image, or the edit instruction when images are provided.',
+      },
       model: {
         type: 'string',
         enum: MODELS,
-        description: 'gpt-image-2.5-flare is faster; gpt-image-2.5-sunburst is better for precise edits. Default: flare.',
+        description:
+          'gpt-image-2.5-flare: fastest, good for everyday images (default). ' +
+          'gpt-image-2.5-sunburst: highest fidelity, best for precise edits and multi-round refinements.',
       },
       size: {
         type: 'string',
-        description: '1K (1024x1024), 2K (2048x2048), 4K (4096x4096), auto, or an explicit WIDTHxHEIGHT (multiples of 16).',
+        description:
+          '1K = 1024x1024, 2K = 2048x2048, 4K = 4096x4096, auto, or WIDTHxHEIGHT such as 1536x1024 (multiples of 16). Default: 1K.',
       },
       quality: {
         type: 'string',
         enum: QUALITIES,
-        description: 'Render quality. Default: high.',
+        description: 'low is fastest, high is the default, xhigh/max give the most detail, auto lets the relay decide.',
       },
-      n: { type: 'integer', minimum: 1, maximum: 4, description: 'Number of images (1-4). Default: 1.' },
+      n: { type: 'integer', minimum: 1, maximum: 4, description: 'How many images to return (1-4). Default: 1.' },
       images: {
         type: 'array',
         items: { type: 'string' },
-        description: 'Optional local image file paths for image-to-image editing.',
+        description: 'Local image file paths for image-to-image editing. When provided the request uses the image edit endpoint.',
       },
-      outputPath: { type: 'string', description: 'Optional absolute output file path.' },
+      outputPath: { type: 'string', description: 'Optional absolute file path for the first saved image.' },
     },
     required: ['prompt'],
   },
@@ -310,6 +321,12 @@ async function handleMessage(message) {
           protocolVersion: params?.protocolVersion || '2024-11-05',
           capabilities: { tools: {} },
           serverInfo: { name: 'bigyellow-imagegen', version: VERSION },
+          instructions:
+            '生图/改图工具：调用 generate_image。' +
+            '模型：gpt-image-2.5-flare（快，默认）或 gpt-image-2.5-sunburst（精度高，适合精修与多轮编辑）。' +
+            '尺寸：1K / 2K / 4K 或 宽x高；质量：low / medium / high / xhigh / max / auto。' +
+            '图生图或编辑：把本地图片路径放进 images 数组。' +
+            '图片会保存到本地，结果文本里会返回文件路径。',
         },
       });
       return;
